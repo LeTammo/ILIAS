@@ -2489,7 +2489,7 @@ class ilTable2GUI extends ilTableGUI
                     break;
 
                 case self::EXPORT_CSV:
-                    $csv = new ilCSVWriter();
+                    $csv = new ilCSVSanitizingWriter();
                     $csv->setSeparator(";");
 
                     ob_start();
