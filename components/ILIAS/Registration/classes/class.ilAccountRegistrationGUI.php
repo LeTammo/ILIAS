@@ -18,8 +18,9 @@
 
 declare(strict_types=1);
 
+use ILIAS\DI\Container;
 use ILIAS\Language\UserSettings\Language as LanguageSetting;
-use ILIAS\User\Settings\NewAccountMail\Repository as NewAccountMailRepository;
+use ILIAS\Registration\Service\DualOptInService;
 use ILIAS\User\Settings\Settings as UserSettings;
 use ILIAS\User\Profile\Profile;
 use ILIAS\User\Profile\Fields\Standard\Alias;
@@ -41,6 +42,7 @@ class ilAccountRegistrationGUI
     protected UserSettings $user_settings;
 
     protected ?ilPropertyFormGUI $form = null;
+    protected Container $dic;
 
     protected ilGlobalTemplateInterface $tpl;
     protected ilCtrlInterface $ctrl;
@@ -62,6 +64,7 @@ class ilAccountRegistrationGUI
     {
         global $DIC;
 
+        $this->dic = $DIC;
         $this->tpl = $DIC->ui()->mainTemplate();
 
         $this->ctrl = $DIC->ctrl();
@@ -558,18 +561,10 @@ class ilAccountRegistrationGUI
         }
         // Send mail to new user
         // Registration with confirmation link ist enabled
-        if (!$this->code_was_used &&
-            $this->registration_settings->getRegistrationType() === ilRegistrationSettings::IL_REG_ACTIVATION) {
-            $mail = new ilRegistrationMimeMailNotification();
-            $mail->setType(ilRegistrationMimeMailNotification::TYPE_NOTIFICATION_ACTIVATION);
-            $mail->setRecipients([$this->userObj]);
-            $mail->setAdditionalInformation(
-                [
-                    'usr' => $this->userObj,
-                    'hash_lifetime' => $this->registration_settings->getRegistrationHashLifetime()
-                ]
-            );
-            $mail->send();
+        $reg_is_active = $this->registration_settings->getRegistrationType() === ilRegistrationSettings::IL_REG_ACTIVATION;
+        if (!$this->code_was_used && $reg_is_active) {
+            $dual_op_in_service = new DualOptInService($this->dic);
+            $dual_op_in_service->distributeMailsOnRegistration($this->userObj, $this->registration_settings);
         } else {
             $accountMail = new ilAccountRegistrationMail(
                 $this->registration_settings,

@@ -1,0 +1,36 @@
+<?php
+
+/**
+ * This file is part of ILIAS, a powerful learning management system
+ * published by ILIAS open source e-Learning e.V.
+ *
+ * ILIAS is licensed with the GPL-3.0,
+ * see https://www.gnu.org/licenses/gpl-3.0.en.html
+ * You should have received a copy of said license along with the
+ * source code, too.
+ *
+ * If this is not the case or you just want to try ILIAS, you'll find
+ * us at:
+ * https://www.ilias.de
+ * https://github.com/ILIAS-eLearning
+ *
+ *********************************************************************/
+
+declare(strict_types=1);
+
+use ILIAS\Data\Clock\ClockFactoryImpl;
+use ILIAS\Registration\Repository\RegistrationHashRepository;
+
+class ilRegistrationAppEventListener implements ilAppEventListener
+{
+
+    public static function handleEvent(string $a_component, string $a_event, array $a_parameter): void
+    {
+        if (($a_component === 'Services/User') && $a_event === 'deleteUser') {
+            global $DIC;
+
+            $registration_hash_repository = new RegistrationHashRepository($DIC->database(), new ClockFactoryImpl());
+            $registration_hash_repository->deleteByUserId((int) $a_parameter['usr_id']);
+        }
+    }
+}
