@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-use ILIAS\DualOptIn\Service\DualOptInService;
+use ILIAS\DualOptIn\Service\DualOptInServiceImpl;
 
 /**
  * Soap utitliy functions
@@ -459,8 +459,8 @@ class ilSoapUtils extends ilSoapAdministration
 
         global $DIC;
 
-        $dual_op_in_service = new DualOptInService($DIC);
-        $dual_op_in_service->deleteExpiredUserObjects($usr_id);
+        $dual_opt_in_service = new DualOptInServiceImpl($DIC);
+        $dual_opt_in_service->deleteExpiredUserObjects($usr_id);
 
         return true;
     }

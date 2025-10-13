@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-use ILIAS\DualOptIn\Service\DualOptInService;
+use ILIAS\DualOptIn\Service\DualOptInServiceImpl;
 use Psr\Http\Message\ServerRequestInterface;
 use ILIAS\UICore\PageContentProvider;
 use ILIAS\Refinery\Factory as RefineryFactory;
@@ -1524,7 +1524,7 @@ class ilStartUpGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInterface
             $this->ctrl->redirectToURL(sprintf('./login.php?cmd=force_login&lang=%s', $this->lng->getLangKey()));
         }
 
-        $dual_opt_in_service = new DualOptInService($this->dic);
+        $dual_opt_in_service = new DualOptInServiceImpl($this->dic);
 
         try {
             $user = $dual_opt_in_service->verifyAndActivateUser($registration_hash);
