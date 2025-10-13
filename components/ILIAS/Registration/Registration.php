@@ -21,7 +21,7 @@ declare(strict_types=1);
 namespace ILIAS;
 
 use ILIAS\Refinery\Factory;
-use ILIAS\Registration\Setup\RegistrationHashSetupAgent;
+use ILIAS\DualOptIn\Setup\RegistrationHashSetupAgent;
 use ILIAS\Setup\Agent;
 use ilRegistrationAgent;
 

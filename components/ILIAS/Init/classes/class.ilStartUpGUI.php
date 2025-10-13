@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-use ILIAS\Registration\Service\DualOptInService;
+use ILIAS\DualOptIn\Service\DualOptInService;
 use Psr\Http\Message\ServerRequestInterface;
 use ILIAS\UICore\PageContentProvider;
 use ILIAS\Refinery\Factory as RefineryFactory;

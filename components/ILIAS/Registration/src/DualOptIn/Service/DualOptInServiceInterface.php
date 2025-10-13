@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Registration\Service;
+namespace ILIAS\DualOptIn\Service;
 
 use ilObjUser;
 use ilRegConfirmationLinkExpiredException;

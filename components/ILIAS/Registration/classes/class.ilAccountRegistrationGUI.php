@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\DI\Container;
 use ILIAS\Language\UserSettings\Language as LanguageSetting;
-use ILIAS\Registration\Service\DualOptInService;
+use ILIAS\DualOptIn\Service\DualOptInService;
 use ILIAS\User\Settings\Settings as UserSettings;
 use ILIAS\User\Profile\Profile;
 use ILIAS\User\Profile\Fields\Standard\Alias;

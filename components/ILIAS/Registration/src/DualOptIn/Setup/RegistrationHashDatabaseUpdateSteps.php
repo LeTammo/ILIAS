@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Registration\Setup;
+namespace ILIAS\DualOptIn\Setup;
 
 use ilDatabaseUpdateSteps;
 use ilDBConstants;

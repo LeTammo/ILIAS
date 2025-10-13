@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Registration\Service;
+namespace ILIAS\DualOptIn\Service;
 
 use DateInterval;
 use DateTimeImmutable;
@@ -28,7 +28,7 @@ use ilAccountRegistrationMail;
 use ILIAS\Data\Clock\ClockFactoryImpl;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\DI\Container;
-use ILIAS\Registration\Repository\RegistrationHashRepository;
+use ILIAS\DualOptIn\Repository\RegistrationHashRepository;
 use ILIAS\User\Settings\NewAccountMail\Repository as NewAccountMailRepository;
 use ilLoggerFactory;
 use ilObjectFactory;

@@ -18,9 +18,9 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Registration\Repository;
+namespace ILIAS\DualOptIn\Repository;
 
-use ILIAS\Registration\Entity\RegistrationHash;
+use ILIAS\DualOptIn\Entity\RegistrationHash;
 
 interface RegistrationHashRepositoryInterface
 {

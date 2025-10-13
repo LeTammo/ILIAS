@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-use ILIAS\Registration\Service\DualOptInService;
+use ILIAS\DualOptIn\Service\DualOptInService;
 
 /**
  * Soap utitliy functions

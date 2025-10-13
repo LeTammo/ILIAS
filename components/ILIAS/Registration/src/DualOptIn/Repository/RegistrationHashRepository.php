@@ -18,12 +18,12 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Registration\Repository;
+namespace ILIAS\DualOptIn\Repository;
 
 use ilDBConstants;
 use ilDBInterface;
 use ILIAS\Data\Clock\ClockFactory;
-use ILIAS\Registration\Entity\RegistrationHash;
+use ILIAS\DualOptIn\Entity\RegistrationHash;
 
 readonly class RegistrationHashRepository implements RegistrationHashRepositoryInterface
 {

@@ -19,7 +19,7 @@
 declare(strict_types=1);
 
 use ILIAS\Data\Clock\ClockFactoryImpl;
-use ILIAS\Registration\Repository\RegistrationHashRepository;
+use ILIAS\DualOptIn\Repository\RegistrationHashRepository;
 
 class ilRegistrationAppEventListener implements ilAppEventListener
 {

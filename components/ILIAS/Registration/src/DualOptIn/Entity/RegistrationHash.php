@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Registration\Entity;
+namespace ILIAS\DualOptIn\Entity;
 
 class RegistrationHash
 {
