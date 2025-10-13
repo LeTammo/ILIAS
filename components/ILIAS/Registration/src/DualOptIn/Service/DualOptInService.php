@@ -86,7 +86,7 @@ class DualOptInService implements DualOptInServiceInterface
             $created = (new DataFactory())->clock()->utc()->now()->setTimestamp($reg_hash->getCreationDate());
 
             if ($created < $cutoff) {
-                $this->triggerExpiredUserCleanup($cutoff->getTimestamp(), $reg_hash->getUserId());
+                $this->triggerExpiredUserCleanup($reg_hash->getUserId());
 
                 throw new ilRegConfirmationLinkExpiredException(
                     'reg_confirmation_hash_life_time_expired',
@@ -115,7 +115,7 @@ class DualOptInService implements DualOptInServiceInterface
         $mail->send();
     }
 
-    public function deleteExpiredUserObjects(int $cutoff_ts, int $usr_id): void
+    public function deleteExpiredUserObjects(int $usr_id): void
     {
         $logger = $this->dic->logger()->user();
 
@@ -129,9 +129,10 @@ class DualOptInService implements DualOptInServiceInterface
             return;
         }
 
-        $deleted_hashes = $this->reg_hash_repository->deleteExpired($cutoff_ts, $usr_id);
+        $interval = new DateInterval("PT{$lifetime}S");
+        $cutoff = (new DataFactory())->clock()->utc()->now()->sub($interval);
 
-        $cutoff = (new DataFactory())->clock()->utc()->now()->setTimestamp($cutoff_ts);
+        $deleted_hashes = $this->reg_hash_repository->deleteExpired($cutoff->getTimestamp(), $usr_id);
 
         $logger->info(sprintf(
             '%d inactive user objects eligible for deletion found and deleted (cutoff: %s, lifetime: %d s).',
@@ -189,7 +190,7 @@ class DualOptInService implements DualOptInServiceInterface
         $this->sendRegistrationMail($user, $settings, $password);
     }
 
-    private function triggerExpiredUserCleanup(int $cutoff_ts, int $usr_id): void
+    private function triggerExpiredUserCleanup(int $usr_id): void
     {
         $soap_client = new ilSoapClient();
         $soap_client->setResponseTimeout(1);
@@ -202,7 +203,7 @@ class DualOptInService implements DualOptInServiceInterface
         );
 
         $sid = $_COOKIE[session_name()] . '::' . CLIENT_ID;
-        $soap_client->call('deleteExpiredDualOptInUserObjects', [$sid, $cutoff_ts, $usr_id]);
+        $soap_client->call('deleteExpiredDualOptInUserObjects', [$sid, $usr_id]);
     }
 
     private function sendRegistrationMail(ilObjUser $user, ilRegistrationSettings $settings, string $password): void

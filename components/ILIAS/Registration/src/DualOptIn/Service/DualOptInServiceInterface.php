@@ -33,6 +33,6 @@ interface DualOptInServiceInterface
      */
     public function verifyAndActivateUser(string $hash): ilObjUser;
     public function distributeMailsOnRegistration(ilObjUser $user, ilRegistrationSettings $settings): void;
-    public function deleteExpiredUserObjects(int $cutoff_ts, int $usr_id): void;
+    public function deleteExpiredUserObjects(int $usr_id): void;
 
 }

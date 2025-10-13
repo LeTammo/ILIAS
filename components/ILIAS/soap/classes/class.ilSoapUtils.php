@@ -450,7 +450,7 @@ class ilSoapUtils extends ilSoapAdministration
      * Method for soap webservice: deleteExpiredDualOptInUserObjects
      * This service will run in background. The client has not to wait for response.
      */
-    public function deleteExpiredDualOptInUserObjects(string $sid, int $cutoff_ts, int $usr_id): bool
+    public function deleteExpiredDualOptInUserObjects(string $sid, int $usr_id): bool
     {
         $this->initAuth($sid);
         $this->initIlias();
@@ -460,7 +460,7 @@ class ilSoapUtils extends ilSoapAdministration
         global $DIC;
 
         $dual_op_in_service = new DualOptInService($DIC);
-        $dual_op_in_service->deleteExpiredUserObjects($cutoff_ts, $usr_id);
+        $dual_op_in_service->deleteExpiredUserObjects($usr_id);
 
         return true;
     }

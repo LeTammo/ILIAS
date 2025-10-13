@@ -1350,7 +1350,6 @@ class ilNusoapUserAdministrationAdapter
         $this->server->register(
             'deleteExpiredDualOptInUserObjects',
             array('sid' => 'xsd:string',
-                  'cutoff_ts' => 'xsd:int',
                   'usr_id' => 'xsd:int'
             ),
             array('status' => 'xsd:boolean'),
