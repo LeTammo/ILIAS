@@ -104,14 +104,9 @@ class DualOptInServiceImpl implements DualOptInService
     {
         $hash = $this->reg_hash_repository->create($user->getId());
 
-        $mail = new ilRegistrationMimeMailNotification();
+        $mail = new ilRegistrationMimeMailNotification($user, $hash, $settings->getRegistrationHashLifetime());
         $mail->setType(ilRegistrationMimeMailNotification::TYPE_NOTIFICATION_ACTIVATION);
         $mail->setRecipients([$user]);
-        $mail->setAdditionalInformation([
-            'usr' => $user,
-            'hash_lifetime' => $settings->getRegistrationHashLifetime(),
-            'reg_hash' => $hash,
-        ]);
         $mail->send();
     }
 

@@ -24,7 +24,7 @@ use ILIAS\DualOptIn\Entity\RegistrationHash;
 
 interface RegistrationHashRepository
 {
-    public function create(int $usr_id): string;
+    public function create(int $usr_id): RegistrationHash;
     public function store(int $usr_id, string $hash, string $creation_ts): void;
     public function findByHash(string $hash): ?RegistrationHash;
     public function deleteByUserId(int $usr_id): void;

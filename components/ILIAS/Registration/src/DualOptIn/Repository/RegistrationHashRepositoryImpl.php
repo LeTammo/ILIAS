@@ -33,8 +33,10 @@ readonly class RegistrationHashRepositoryImpl implements RegistrationHashReposit
     ) {
     }
 
-    public function create(int $usr_id): string
+    public function create(int $usr_id): RegistrationHash
     {
+        $creation_date = $this->clock_factory->utc()->now()->getTimestamp();
+
         do {
             $unique_id = uniqid((string) mt_rand(), true);
             $hash = substr(md5($unique_id), 0, 16);
@@ -54,10 +56,10 @@ readonly class RegistrationHashRepositoryImpl implements RegistrationHashReposit
         $this->db->manipulateF(
             'INSERT INTO reg_dual_opt_in (usr_id, reg_hash, creation_date) VALUES (%s, %s, %s)',
             [ilDBConstants::T_INTEGER, ilDBConstants::T_TEXT, ilDBConstants::T_INTEGER],
-            [$usr_id, $hash, $this->clock_factory->utc()->now()->getTimestamp() ]
+            [$usr_id, $hash, $creation_date ]
         );
 
-        return $hash;
+        return new RegistrationHash($usr_id, $hash, $creation_date);
     }
 
     public function store(int $usr_id, string $hash, string $creation_ts): void
