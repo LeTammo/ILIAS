@@ -25,7 +25,6 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
 use ilAccountRegistrationMail;
-use ILIAS\Data\Clock\ClockFactoryImpl;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\DI\Container;
 use ILIAS\DualOptIn\Repository\RegistrationHashRepositoryImpl;
@@ -49,7 +48,7 @@ class DualOptInServiceImpl implements DualOptInService
     public function __construct(Container $dic)
     {
         $this->dic = $dic;
-        $this->reg_hash_repository = new RegistrationHashRepositoryImpl($this->dic->database(), new ClockFactoryImpl());
+        $this->reg_hash_repository = new RegistrationHashRepositoryImpl($this->dic->database(), (new DataFactory())->clock());
     }
 
     /**
@@ -197,7 +196,7 @@ class DualOptInServiceImpl implements DualOptInService
             'Triggered soap call (background process) for deletion of inactive user objects with expired confirmation hash values (dual opt in) ...'
         );
 
-        $sid = $_COOKIE[session_name()] . '::' . CLIENT_ID;
+        $sid = session_id() . '::' . CLIENT_ID;
         $soap_client->call('deleteExpiredDualOptInUserObjects', [$sid, $usr_id]);
     }
 

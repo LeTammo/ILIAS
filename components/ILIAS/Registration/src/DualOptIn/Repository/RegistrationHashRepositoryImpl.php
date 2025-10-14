@@ -99,7 +99,7 @@ readonly class RegistrationHashRepositoryImpl implements RegistrationHashReposit
     /**
      * @return list<RegistrationHash>
      */
-    public function deleteExpired(int $cutoff_ts, ?int $prioritized_usr_id = null): array
+    public function deleteExpired(int $cutoff_ts, ?int $prioritize_usr_id = null): array
     {
         $except_anon_and_sys = $this->db->in(
             'h.usr_id',
@@ -121,7 +121,7 @@ readonly class RegistrationHashRepositoryImpl implements RegistrationHashReposit
         $res = $this->db->queryF(
             $query,
             [ilDBConstants::T_INTEGER, ilDBConstants::T_INTEGER],
-            [$cutoff_ts, $prioritized_usr_id ?? 0]
+            [$cutoff_ts, $prioritize_usr_id ?? 0]
         );
 
         $expired_hashes = [];

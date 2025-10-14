@@ -30,5 +30,5 @@ interface RegistrationHashRepository
     public function deleteByUserId(int $usr_id): void;
 
     /** @return list<RegistrationHash> */
-    public function deleteExpired(int $cutoff_ts, ?int $prioritized_usr_id = null): array;
+    public function deleteExpired(int $cutoff_ts, ?int $prioritize_usr_id = null): array;
 }
