@@ -23,8 +23,9 @@ namespace ILIAS\DualOptIn\Setup;
 use ilDatabaseUpdateSteps;
 use ilDBConstants;
 use ilDBInterface;
+use ILIAS\Data\UUID\Factory as UUIDFactory;
 
-class RegistrationHashDatabaseUpdateSteps implements ilDatabaseUpdateSteps
+class DualOptInDatabaseUpdateSteps implements ilDatabaseUpdateSteps
 {
     protected ilDBInterface $db;
 
@@ -40,6 +41,11 @@ class RegistrationHashDatabaseUpdateSteps implements ilDatabaseUpdateSteps
         }
 
         $fields = [
+            'id' => [
+                'type' => ilDBConstants::T_TEXT,
+                'length' => 255,
+                'notnull' => true,
+            ],
             'usr_id' => [
                 'type' => ilDBConstants::T_INTEGER,
                 'length' => 8,
@@ -59,7 +65,7 @@ class RegistrationHashDatabaseUpdateSteps implements ilDatabaseUpdateSteps
         ];
 
         $this->db->createTable('reg_dual_opt_in', $fields);
-        $this->db->addPrimaryKey('reg_dual_opt_in', ['usr_id']);
+        $this->db->addPrimaryKey('reg_dual_opt_in', ['id']);
     }
 
     public function step_2(): void
@@ -74,11 +80,12 @@ class RegistrationHashDatabaseUpdateSteps implements ilDatabaseUpdateSteps
         $res = $this->db->query(
             "SELECT usr_id, reg_hash, create_date FROM usr_data WHERE reg_hash IS NOT NULL AND reg_hash <> ''"
         );
+
         while ($row = $res->fetchRow(ilDBConstants::FETCHMODE_OBJECT)) {
             $this->db->manipulateF(
-                'INSERT INTO reg_dual_opt_in (usr_id, reg_hash, creation_date) VALUES (%s, %s, %s)',
-                [ilDBConstants::T_INTEGER, ilDBConstants::T_TEXT, ilDBConstants::T_INTEGER],
-                [$row->usr_id, $row->reg_hash, $row->create_date]
+                'INSERT INTO reg_dual_opt_in (id, usr_id, reg_hash, creation_date) VALUES (%s, %s, %s)',
+                [ilDBConstants::T_TEXT, ilDBConstants::T_INTEGER, ilDBConstants::T_TEXT, ilDBConstants::T_INTEGER],
+                [(new UUIDFactory())->uuid4(), $row->usr_id, $row->reg_hash, $row->create_date]
             );
         }
     }

@@ -18,8 +18,7 @@
 
 declare(strict_types=1);
 
-use ILIAS\Data\Factory as DataFactory;
-use ILIAS\DualOptIn\Repository\RegistrationHashRepositoryImpl;
+use ILIAS\DualOptIn\Repository\PendingRegistrationRepositoryImpl;
 
 class ilRegistrationAppEventListener implements ilAppEventListener
 {
@@ -29,8 +28,8 @@ class ilRegistrationAppEventListener implements ilAppEventListener
         if (($a_component === 'Services/User') && $a_event === 'deleteUser') {
             global $DIC;
 
-            $registration_hash_repository = new RegistrationHashRepositoryImpl($DIC->database(), (new DataFactory())->clock());
-            $registration_hash_repository->deleteByUserId((int) $a_parameter['usr_id']);
+            $pending_reg_repository = new PendingRegistrationRepositoryImpl($DIC->database());
+            $pending_reg_repository->deleteByUserId((int) $a_parameter['usr_id']);
         }
     }
 }

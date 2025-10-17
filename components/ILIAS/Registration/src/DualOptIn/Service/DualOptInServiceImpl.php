@@ -21,19 +21,22 @@ declare(strict_types=1);
 namespace ILIAS\DualOptIn\Service;
 
 use DateInterval;
-use DateTimeImmutable;
 use DateTimeInterface;
-use DateTimeZone;
 use ilAccountRegistrationMail;
+use ilComponentLogger;
+use ilDBInterface;
 use ILIAS\Data\Factory as DataFactory;
-use ILIAS\DI\Container;
-use ILIAS\DualOptIn\Repository\RegistrationHashRepositoryImpl;
+use ILIAS\Data\ObjectId;
+use ILIAS\Data\UUID\Factory as UUIDFactory;
+use ILIAS\DualOptIn\Entity\PendingRegistration;
+use ILIAS\DualOptIn\Entity\RegistrationHash;
+use ILIAS\DualOptIn\Exception\PendingRegistrationExpiredException;
+use ILIAS\DualOptIn\Exception\PendingRegistrationNotFoundException;
+use ILIAS\DualOptIn\Repository\PendingRegistrationRepository;
 use ILIAS\User\Settings\NewAccountMail\Repository as NewAccountMailRepository;
 use ilLoggerFactory;
 use ilObjectFactory;
 use ilObjUser;
-use ilRegConfirmationLinkExpiredException;
-use ilRegistrationHashNotFoundException;
 use ilRegistrationMimeMailNotification;
 use ilRegistrationSettings;
 use ilSecuritySettingsChecker;
@@ -42,125 +45,126 @@ use ilSoapClient;
 class DualOptInServiceImpl implements DualOptInService
 {
     public const string ID = "reg_hash_service";
-    protected readonly Container $dic;
-    protected readonly RegistrationHashRepositoryImpl $reg_hash_repository;
 
-    public function __construct(Container $dic)
+    public function __construct(
+        protected readonly PendingRegistrationRepository $pending_reg_repository,
+        protected readonly ilDBInterface $db,
+        protected readonly ilComponentLogger $logger,
+    )
     {
-        $this->dic = $dic;
-        $this->reg_hash_repository = new RegistrationHashRepositoryImpl($this->dic->database(), (new DataFactory())->clock());
     }
 
     /**
-     * @throws ilRegistrationHashNotFoundException
-     * @throws ilRegConfirmationLinkExpiredException
+     * @throws PendingRegistrationNotFoundException
+     * @throws PendingRegistrationExpiredException
      */
-    public function verifyAndActivateUser(string $hash): ilObjUser
+    public function verifyHashAndActivateUser(RegistrationHash $hash): ilObjUser
     {
-        $user_id = $this->verifyHash($hash);
+        $pending_reg = $this->verifyHash($hash);
 
         /** @var ilObjUser $user */
-        $user = ilObjectFactory::getInstanceByObjId($user_id);
-
+        $user = ilObjectFactory::getInstanceByObjId($pending_reg->getUserId());
         $this->activateUser($user);
+
+        $this->pending_reg_repository->deleteById($pending_reg->getId());
 
         return $user;
     }
 
     /**
-     * @throws ilRegistrationHashNotFoundException
-     * @throws ilRegConfirmationLinkExpiredException
+     * @throws PendingRegistrationNotFoundException
+     * @throws PendingRegistrationExpiredException
      */
-    private function verifyHash(string $hash): int
+    private function verifyHash(RegistrationHash $hash): PendingRegistration
     {
-        $reg_hash = $this->reg_hash_repository->findByHash($hash);
-        if (!$reg_hash) {
-            throw new ilRegistrationHashNotFoundException('reg_confirmation_hash_not_found');
+        $pending_reg = $this->pending_reg_repository->findByHashValue($hash->toString());
+        if (!$pending_reg) {
+            throw new PendingRegistrationNotFoundException();
         }
 
         $lifetime = (new ilRegistrationSettings())->getRegistrationHashLifetime();
         if ($lifetime > 0) {
             $interval = new DateInterval("PT{$lifetime}S");
             $cutoff = (new DataFactory())->clock()->utc()->now()->sub($interval);
-            $created = (new DataFactory())->clock()->utc()->now()->setTimestamp($reg_hash->getCreationDate());
+            $created = $pending_reg->getCreateDate();
 
             if ($created < $cutoff) {
-                $this->triggerExpiredUserCleanup($reg_hash->getUserId());
-
-                throw new ilRegConfirmationLinkExpiredException(
-                    'reg_confirmation_hash_life_time_expired',
-                    $reg_hash->getUserId()
-                );
+                $this->triggerExpiredUserCleanup($pending_reg->getUserId());
+                throw new PendingRegistrationExpiredException();
             }
         }
 
-        $this->reg_hash_repository->deleteByUserId($reg_hash->getUserId());
-
-        return $reg_hash->getUserId();
+        return $pending_reg;
     }
 
     public function distributeMailsOnRegistration(ilObjUser $user, ilRegistrationSettings $settings): void
     {
-        $hash = $this->reg_hash_repository->create($user->getId());
+        $pending_reg = $this->createPendingRegistration($user->getId());
 
-        $mail = new ilRegistrationMimeMailNotification($user, $hash, $settings->getRegistrationHashLifetime());
+        $mail = new ilRegistrationMimeMailNotification($user, $pending_reg, $settings->getRegistrationHashLifetime());
         $mail->setType(ilRegistrationMimeMailNotification::TYPE_NOTIFICATION_ACTIVATION);
         $mail->setRecipients([$user]);
         $mail->send();
     }
 
+    private function createPendingRegistration(int $usr_id): PendingRegistration
+    {
+        $uuid = (new UUIDFactory())->uuid4();
+        $user_id = new ObjectId($usr_id);
+        $hash = $this->pending_reg_repository->findNewHash();
+        $creation_date = (new DataFactory())->clock()->utc()->now();
+
+        $pending_reg = new PendingRegistration($uuid, $user_id, $hash, $creation_date);
+        $this->pending_reg_repository->store($pending_reg);
+
+        return $pending_reg;
+    }
+
     public function deleteExpiredUserObjects(int $usr_id): void
     {
-        $logger = $this->dic->logger()->user();
-
-        $logger->debug(
+        $this->logger->debug(
             'Started deletion of inactive user objects with expired confirmation hash values (dual opt in) ...'
         );
         $lifetime = (new ilRegistrationSettings())->getRegistrationHashLifetime();
 
         if ($lifetime <= 0) {
-            $logger->debug('Registration hash lifetime is <= 0, kipping deletion.');
+            $this->logger->debug('Registration hash lifetime is <= 0, kipping deletion.');
             return;
         }
 
         $interval = new DateInterval("PT{$lifetime}S");
         $cutoff = (new DataFactory())->clock()->utc()->now()->sub($interval);
 
-        $deleted_hashes = $this->reg_hash_repository->deleteExpired($cutoff->getTimestamp(), $usr_id);
+        $deleted_regs = $this->pending_reg_repository->deleteExpired($cutoff->getTimestamp(), $usr_id);
 
-        $logger->info(sprintf(
+        $this->logger->info(sprintf(
             '%d inactive user objects eligible for deletion found and deleted (cutoff: %s, lifetime: %d s).',
-            count($deleted_hashes),
+            count($deleted_regs),
             $cutoff->format(DateTimeInterface::ATOM),
             $lifetime
         ));
 
         $num_deleted_users = 0;
-        foreach ($deleted_hashes as $deleted_hash) {
-            $user = ilObjectFactory::getInstanceByObjId($deleted_hash->getUserId(), false);
+        foreach ($deleted_regs as $deleted_reg) {
+            $user = ilObjectFactory::getInstanceByObjId($deleted_reg->getUserId(), false);
             if (!($user instanceof ilObjUser)) {
                 continue;
             }
 
-            $created = DateTimeImmutable::createFromFormat(
-                ilObjUser::DATABASE_DATE_FORMAT,
-                (string) $deleted_hash->getCreationDate(),
-                new DateTimeZone('UTC')
-            );
-
-            $logger->info(sprintf(
+            $this->logger->info(sprintf(
                 'Deleting user (login: %s | id: %d) – expired dual opt-in (created: %s, cutoff: %s, lifetime: %d s)',
                 $user->getLogin(),
                 $user->getId(),
-                $created ? $created->format(DateTimeInterface::ATOM) : '-',
+                $deleted_reg->getCreateDate()->format(ilObjUser::DATABASE_DATE_FORMAT),
                 $cutoff->format(DateTimeInterface::ATOM),
                 $lifetime
             ));
+
             $user->delete();
             ++$num_deleted_users;
         }
 
-        $logger->info(sprintf(
+        $this->logger->info(sprintf(
             '%d inactive user objects with expired confirmation hash values (dual opt-in) deleted.',
             $num_deleted_users
         ));
@@ -171,12 +175,12 @@ class DualOptInServiceImpl implements DualOptInService
         $user->setActive(true);
 
         $settings = new ilRegistrationSettings();
+
+        $password = '';
         if ($settings->passwordGenerationEnabled()) {
             $password = ilSecuritySettingsChecker::generatePasswords(1)[0];
             $user->setPasswd($password, ilObjUser::PASSWD_PLAIN);
             $user->setLastPasswordChangeTS(time());
-        } else {
-            $password = '';
         }
 
         $user->update();
@@ -191,8 +195,7 @@ class DualOptInServiceImpl implements DualOptInService
         $soap_client->enableWSDL(true);
         $soap_client->init();
 
-        $logger = $this->dic->logger()->user();
-        $logger->info(
+        $this->logger->info(
             'Triggered soap call (background process) for deletion of inactive user objects with expired confirmation hash values (dual opt in) ...'
         );
 
@@ -205,7 +208,7 @@ class DualOptInServiceImpl implements DualOptInService
         $account_mail = (new ilAccountRegistrationMail(
             $settings,
             ilLoggerFactory::getLogger('user'),
-            new NewAccountMailRepository($this->dic->database())
+            new NewAccountMailRepository($this->db)
         ))->withEmailConfirmationRegistrationMode();
 
         if ($user->getPref('reg_target') ?? '') {

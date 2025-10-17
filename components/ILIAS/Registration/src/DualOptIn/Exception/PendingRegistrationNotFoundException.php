@@ -18,17 +18,17 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\DualOptIn\Repository;
+namespace ILIAS\DualOptIn\Exception;
 
-use ILIAS\DualOptIn\Entity\RegistrationHash;
-
-interface RegistrationHashRepository
+/**
+ * Class for user related exception handling in ILIAS.
+ * @author  Michael Jansen <mjansen@databay.de>
+ * @version $Id$
+ */
+class PendingRegistrationNotFoundException extends DualOptInException
 {
-    public function create(int $usr_id): RegistrationHash;
-    public function store(int $usr_id, string $hash, string $creation_ts): void;
-    public function findByHash(string $hash): ?RegistrationHash;
-    public function deleteByUserId(int $usr_id): void;
-
-    /** @return list<RegistrationHash> */
-    public function deleteExpired(int $cutoff_ts, ?int $prioritize_usr_id = null): array;
+    public function __construct()
+    {
+        parent::__construct('reg_confirmation_hash_not_found');
+    }
 }

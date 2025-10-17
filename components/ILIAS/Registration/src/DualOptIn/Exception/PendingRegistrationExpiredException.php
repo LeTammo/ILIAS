@@ -18,11 +18,16 @@
 
 declare(strict_types=1);
 
+namespace ILIAS\DualOptIn\Exception;
+
 /**
  * Class for user related exception handling in ILIAS.
- * @author  Michael Jansen <mjansen@databay.de>
- * @version $Id$
+ * @author Michael Jansen <mjansen@databay.de>
  */
-class ilRegistrationHashNotFoundException extends ilRegistrationException
+class PendingRegistrationExpiredException extends DualOptInException
 {
+    public function __construct()
+    {
+        parent::__construct('reg_confirmation_hash_life_time_expired');
+    }
 }

@@ -18,10 +18,18 @@
 
 declare(strict_types=1);
 
-/**
- * Class for user related exception handling in ILIAS.
- * @author Michael Jansen <mjansen@databay.de>
- */
-class ilRegConfirmationLinkExpiredException extends ilRegistrationException
+namespace ILIAS\DualOptIn\Repository;
+
+use ILIAS\DualOptIn\Entity\PendingRegistration;
+use ILIAS\DualOptIn\Entity\RegistrationHash;
+
+interface PendingRegistrationRepository
 {
+    public function findNewHash(): RegistrationHash;
+    public function store(PendingRegistration $reg): void;
+    public function findByHashValue(string $hash_value): ?PendingRegistration;
+    public function deleteByUserId(int $usr_id): void;
+
+    /** @return list<PendingRegistration> */
+    public function deleteExpired(int $cutoff_ts, ?int $prioritize_usr_id = null): array;
 }

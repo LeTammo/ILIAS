@@ -16,7 +16,7 @@
  *
  *********************************************************************/
 
-use ILIAS\DualOptIn\Setup\RegistrationHashDatabaseUpdateSteps;
+use ILIAS\DualOptIn\Setup\DualOptInDatabaseUpdateSteps;
 use ILIAS\Setup\Config;
 use ILIAS\Setup\ObjectiveCollection;
 use ILIAS\Setup\Objective;
@@ -29,7 +29,7 @@ class ilRegistrationAgent extends ILIAS\Setup\Agent\NullAgent
             "Service/Registation Objectives",
             false,
             new \ilRegistrationConfigUpdateObjective(),
-            new ilDatabaseUpdateStepsExecutedObjective(new RegistrationHashDatabaseUpdateSteps()),
+            new ilDatabaseUpdateStepsExecutedObjective(new DualOptInDatabaseUpdateSteps()),
         );
     }
 }

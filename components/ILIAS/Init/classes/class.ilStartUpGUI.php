@@ -18,6 +18,9 @@
 
 declare(strict_types=1);
 
+use ILIAS\DualOptIn\Entity\RegistrationHash;
+use ILIAS\DualOptIn\Exception\DualOptInException;
+use ILIAS\DualOptIn\Repository\PendingRegistrationRepositoryImpl;
 use ILIAS\DualOptIn\Service\DualOptInServiceImpl;
 use Psr\Http\Message\ServerRequestInterface;
 use ILIAS\UICore\PageContentProvider;
@@ -1509,13 +1512,16 @@ class ilStartUpGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInterface
         $this->lng->loadLanguageModule('registration');
 
         ilUtil::setCookie('iltest', 'cookie', false);
-        $registration_hash = trim(
-            $this->http->wrapper()->query()->retrieve(
-                'rh',
-                $this->refinery->byTrying([$this->refinery->kindlyTo()->string(), $this->refinery->always('')])
-            )
-        );
-        if ($registration_hash === '') {
+
+        $by_trying = $this->refinery->byTrying([
+            $this->refinery->kindlyTo()->string(),
+            $this->refinery->always(null)
+        ]);
+
+        try {
+            $reg_hash = $this->refinery->to()->toNew(RegistrationHash::class)
+                ->transform([$this->http->wrapper()->query()->retrieve('rh', $by_trying)]);
+        } catch (Exception $e) {
             $this->mainTemplate->setOnScreenMessage(
                 ilGlobalTemplateInterface::MESSAGE_TYPE_FAILURE,
                 $this->lng->txt('reg_confirmation_hash_not_passed'),
@@ -1524,11 +1530,15 @@ class ilStartUpGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInterface
             $this->ctrl->redirectToURL(sprintf('./login.php?cmd=force_login&lang=%s', $this->lng->getLangKey()));
         }
 
-        $dual_opt_in_service = new DualOptInServiceImpl($this->dic);
+        $dual_opt_in_service = new DualOptInServiceImpl(
+            new PendingRegistrationRepositoryImpl($this->dic->database()),
+            $this->dic->database(),
+            $this->dic->logger()->user()
+        );
 
         try {
-            $user = $dual_opt_in_service->verifyAndActivateUser($registration_hash);
-        } catch (ilRegistrationHashNotFoundException | ilRegConfirmationLinkExpiredException $exception) {
+            $user = $dual_opt_in_service->verifyHashAndActivateUser($reg_hash);
+        } catch (DualOptInException $exception) {
             $this->mainTemplate->setOnScreenMessage(
                 ilGlobalTemplateInterface::MESSAGE_TYPE_FAILURE,
                 $this->lng->txt($exception->getMessage()),

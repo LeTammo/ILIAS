@@ -19,6 +19,7 @@
 declare(strict_types=1);
 
 use ILIAS\DI\Container;
+use ILIAS\DualOptIn\Repository\PendingRegistrationRepositoryImpl;
 use ILIAS\Language\UserSettings\Language as LanguageSetting;
 use ILIAS\DualOptIn\Service\DualOptInServiceImpl;
 use ILIAS\User\Settings\Settings as UserSettings;
@@ -563,7 +564,11 @@ class ilAccountRegistrationGUI
         // Registration with confirmation link ist enabled
         $is_dual_opt_in_reg_mode = $this->registration_settings->getRegistrationType() === ilRegistrationSettings::IL_REG_ACTIVATION;
         if (!$this->code_was_used && $is_dual_opt_in_reg_mode) {
-            $dual_opt_in_service = new DualOptInServiceImpl($this->dic);
+            $dual_opt_in_service = new DualOptInServiceImpl(
+                new PendingRegistrationRepositoryImpl($this->dic->database()),
+                $this->dic->database(),
+                $this->dic->logger()->user()
+            );
             $dual_opt_in_service->distributeMailsOnRegistration($this->userObj, $this->registration_settings);
         } else {
             $accountMail = new ilAccountRegistrationMail(

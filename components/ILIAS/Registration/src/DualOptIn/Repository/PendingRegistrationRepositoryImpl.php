@@ -22,21 +22,19 @@ namespace ILIAS\DualOptIn\Repository;
 
 use ilDBConstants;
 use ilDBInterface;
-use ILIAS\Data\Clock\ClockFactory;
+use ILIAS\Data\Factory as DataFactory;
+use ILIAS\Data\ObjectId;
+use ILIAS\Data\UUID\Factory as UUIDFactory;
+use ILIAS\DualOptIn\Entity\PendingRegistration;
 use ILIAS\DualOptIn\Entity\RegistrationHash;
 
-readonly class RegistrationHashRepositoryImpl implements RegistrationHashRepository
+readonly class PendingRegistrationRepositoryImpl implements PendingRegistrationRepository
 {
-    public function __construct(
-        protected ilDBInterface $db,
-        protected ClockFactory $clock_factory
-    ) {
-    }
+    public function __construct(protected ilDBInterface $db)
+    {}
 
-    public function create(int $usr_id): RegistrationHash
+    public function findNewHash(): RegistrationHash
     {
-        $creation_date = $this->clock_factory->utc()->now()->getTimestamp();
-
         do {
             $unique_id = uniqid((string) mt_rand(), true);
             $hash = substr(md5($unique_id), 0, 16);
@@ -53,30 +51,24 @@ readonly class RegistrationHashRepositoryImpl implements RegistrationHashReposit
             break;
         } while (true);
 
-        $this->db->manipulateF(
-            'INSERT INTO reg_dual_opt_in (usr_id, reg_hash, creation_date) VALUES (%s, %s, %s)',
-            [ilDBConstants::T_INTEGER, ilDBConstants::T_TEXT, ilDBConstants::T_INTEGER],
-            [$usr_id, $hash, $creation_date ]
-        );
-
-        return new RegistrationHash($usr_id, $hash, $creation_date);
+        return new RegistrationHash($hash);
     }
 
-    public function store(int $usr_id, string $hash, string $creation_ts): void
+    public function store(PendingRegistration $reg): void
     {
         $this->db->manipulateF(
-            'REPLACE INTO reg_dual_opt_in (usr_id, reg_hash, creation_date) VALUES (%s, %s, %s)',
-            [ilDBConstants::T_INTEGER, ilDBConstants::T_TEXT, ilDBConstants::T_INTEGER],
-            [$usr_id, $hash, $creation_ts]
+            'REPLACE INTO reg_dual_opt_in (id, usr_id, reg_hash, creation_date) VALUES (%s, %s, %s, %s)',
+            [ilDBConstants::T_TEXT, ilDBConstants::T_INTEGER, ilDBConstants::T_TEXT, ilDBConstants::T_INTEGER],
+            [$reg->getId(), $reg->getUserId(), $reg->getHashValue(), $reg->getCreateDate()->getTimestamp()]
         );
     }
 
-    public function findByHash(string $hash): ?RegistrationHash
+    public function findByHashValue(string $hash_value): ?PendingRegistration
     {
         $res = $this->db->queryf(
-            'SELECT usr_id, reg_hash, creation_date FROM reg_dual_opt_in WHERE reg_hash = %s',
+            'SELECT id, usr_id, reg_hash, creation_date FROM reg_dual_opt_in WHERE reg_hash = %s',
             [ilDBConstants::T_TEXT],
-            [$hash]
+            [$hash_value]
         );
 
         $row = $this->db->fetchAssoc($res);
@@ -84,7 +76,16 @@ readonly class RegistrationHashRepositoryImpl implements RegistrationHashReposit
             return null;
         }
 
-        return new RegistrationHash($row['usr_id'], $row['reg_hash'], $row['creation_date']);
+        return $this->rebuildObjFromRow($row);
+    }
+
+    public function deleteById(string $id): void
+    {
+        $this->db->manipulateF(
+            'DELETE FROM reg_dual_opt_in WHERE id = %s',
+            [ilDBConstants::T_TEXT],
+            [$id]
+        );
     }
 
     public function deleteByUserId(int $usr_id): void
@@ -97,7 +98,7 @@ readonly class RegistrationHashRepositoryImpl implements RegistrationHashReposit
     }
 
     /**
-     * @return list<RegistrationHash>
+     * @return list<PendingRegistration>
      */
     public function deleteExpired(int $cutoff_ts, ?int $prioritize_usr_id = null): array
     {
@@ -126,10 +127,20 @@ readonly class RegistrationHashRepositoryImpl implements RegistrationHashReposit
 
         $expired_hashes = [];
         while ($row = $this->db->fetchAssoc($res)) {
-            $this->deleteByUserId($row['usr_id']);
-            $expired_hashes[] = new RegistrationHash($row['usr_id'], $row['reg_hash'], $row['creation_date']);
+            $this->deleteById($row['id']);
+            $expired_hashes[] = $this->rebuildObjFromRow($row);
         }
 
         return $expired_hashes;
+    }
+
+    private function rebuildObjFromRow(array $row): PendingRegistration
+    {
+        $id = (new UUIDFactory())->fromString($row['id']);
+        $usr_id = new ObjectId($row['usr_id']);
+        $reg_hash = new RegistrationHash($row['reg_hash']);
+        $created_at = (new DataFactory())->clock()->utc()->now()->setTimestamp($row['creation_date']);
+
+        return new PendingRegistration($id, $usr_id, $reg_hash, $created_at);
     }
 }

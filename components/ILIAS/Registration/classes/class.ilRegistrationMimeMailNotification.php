@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-use ILIAS\DualOptIn\Entity\RegistrationHash;
+use ILIAS\DualOptIn\Entity\PendingRegistration;
 
 /**
  * Class for mime mail registration notifications
@@ -28,16 +28,16 @@ class ilRegistrationMimeMailNotification extends ilMimeMailNotification
 {
     public const int TYPE_NOTIFICATION_ACTIVATION = 32;
     private readonly ilObjUser $user;
-    private readonly RegistrationHash $hash;
+    private readonly PendingRegistration $pending_reg;
     private readonly int $hash_lifetime_sec;
 
 
-    public function __construct(ilObjUser $user, RegistrationHash $hash, int $hash_lifetime_sec)
+    public function __construct(ilObjUser $user, PendingRegistration $pending_reg, int $hash_lifetime_sec)
     {
         parent::__construct();
 
         $this->user = $user;
-        $this->hash = $hash;
+        $this->pending_reg = $pending_reg;
         $this->hash_lifetime_sec = $hash_lifetime_sec;
     }
 
@@ -72,7 +72,7 @@ class ilRegistrationMimeMailNotification extends ilMimeMailNotification
                 . '/confirmReg.php?client_id='
                 . CLIENT_ID
                 . '&rh='
-                . $this->hash->getHash()
+                . $this->pending_reg->getHashValue()
             );
             $this->appendBody("\n\n");
             $this->appendBody(sprintf(

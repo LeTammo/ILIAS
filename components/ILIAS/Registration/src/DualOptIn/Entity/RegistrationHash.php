@@ -20,31 +20,37 @@ declare(strict_types=1);
 
 namespace ILIAS\DualOptIn\Entity;
 
-class RegistrationHash
+final class RegistrationHash
 {
-    private int $usr_id;
-    private string $reg_hash;
-    private int $creation_date;
+    private string $value;
 
-    public function __construct(int $usr_id, string $reg_hash, int $creation_date)
+    public function __construct(string $value)
     {
-        $this->usr_id = $usr_id;
-        $this->reg_hash = $reg_hash;
-        $this->creation_date = $creation_date;
+        $value = trim($value);
+
+        if ($value === '') {
+            throw new \InvalidArgumentException('Registration hash must not be empty.');
+        }
+
+        if (mb_strlen($value) < 16) {
+            throw new \InvalidArgumentException('Registration hash must be 16 characters.');
+        }
+
+        $this->value = $value;
     }
 
-    public function getUserId(): int
+    public function equals(self $other): bool
     {
-        return $this->usr_id;
+        return hash_equals($this->value, $other->value);
     }
 
-    public function getHash(): string
+    public function toString(): string
     {
-        return $this->reg_hash;
+        return $this->value;
     }
 
-    public function getCreationDate(): int
+    public function __toString(): string
     {
-        return $this->creation_date;
+        return $this->toString();
     }
 }

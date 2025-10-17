@@ -21,7 +21,6 @@ declare(strict_types=1);
 namespace ILIAS;
 
 use ILIAS\Refinery\Factory;
-use ILIAS\DualOptIn\Setup\RegistrationHashSetupAgent;
 use ILIAS\Setup\Agent;
 use ilRegistrationAgent;
 
@@ -41,8 +40,6 @@ class Registration implements Component\Component
             new ilRegistrationAgent(
                 $pull[Factory::class]
             );
-        $contribute[Agent::class] = static fn() =>
-            new RegistrationHashSetupAgent();
 
         $contribute[Component\Resource\PublicAsset::class] = fn() =>
             new Component\Resource\Endpoint($this, "confirmReg.php");
