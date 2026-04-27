@@ -628,7 +628,7 @@ class ilPCMediaObject extends ilPageContent
             $mob_id = ilInternalLink::_extractObjIdOfTarget($or_id);
 
             if (!($inst_id > 0)) {
-                if ($mob_id > 0) {
+                if ($mob_id > 0 && ilObjMediaObject::_exists($mob_id)) {
                     $media_object = new ilObjMediaObject($mob_id);
                     $new_mob = $media_object->duplicate();
                     $node->setAttribute("OriginId", "il__mob_" . $new_mob->getId());
