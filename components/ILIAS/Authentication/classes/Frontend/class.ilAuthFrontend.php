@@ -18,6 +18,14 @@
 
 declare(strict_types=1);
 
+use ILIAS\Authentication\Login\Policy\PostLoginPolicyRunner;
+use ILIAS\Authentication\Login\CompleteSuccessfulLogin;
+use ILIAS\Authentication\Login\LoginSubjectFactory;
+use ILIAS\Authentication\Login\FailedLoginCandidateResolver;
+use ILIAS\Authentication\Login\Adapter\SecuritySettingsAdapter;
+use ILIAS\Authentication\Login\Adapter\UserAdapter;
+use ILIAS\Authentication\Login\Port\Lockout\RecordFailedLoginAttempts;
+use ILIAS\Authentication\Login\UserId;
 use ILIAS\User\Profile\Profile;
 
 class ilAuthFrontend implements ilAuthFrontendInterface
@@ -27,35 +35,61 @@ class ilAuthFrontend implements ilAuthFrontendInterface
     public const string MIG_DESIRED_AUTHMODE = 'mig_desired_auth_mode';
 
     private ilLogger $logger;
-    private ilSetting $settings;
-    private ilLanguage $lng;
-
     private ilAuthCredentials $credentials;
     private ilAuthStatus $status;
     /** @var list<ilAuthProviderInterface> */
     private array $providers;
     private ilAuthSession $auth_session;
     private ilAppEventHandler $ilAppEventHandler;
-
     private Profile $user_profile;
+    private LoginSubjectFactory $login_subject_factory;
+    private PostLoginPolicyRunner $post_login_policy_runner;
+    private RecordFailedLoginAttempts $record_failed_login_attempts;
+    private CompleteSuccessfulLogin $complete_successful_login;
+    private FailedLoginCandidateResolver $failed_login_candidate_resolver;
 
     /**
      * @param list<ilAuthProviderInterface> $providers
      */
-    public function __construct(ilAuthSession $session, ilAuthStatus $status, ilAuthCredentials $credentials, array $providers)
+    public function __construct(
+        ilAuthSession $session,
+        ilAuthStatus $status,
+        ilAuthCredentials $credentials,
+        array $providers,
+        SecuritySettingsAdapter $security_adapter,
+        PostLoginPolicyRunner $post_login_policy_runner
+    )
     {
         global $DIC;
         $this->logger = $DIC->logger()->auth();
-        $this->settings = $DIC->settings();
-        $this->lng = $DIC->language();
         $this->ilAppEventHandler = $DIC->event();
 
         $this->auth_session = $session;
         $this->credentials = $credentials;
         $this->status = $status;
         $this->providers = $providers;
+        $this->post_login_policy_runner = $post_login_policy_runner;
 
         $this->user_profile = $DIC['user']->getProfile();
+
+        $this->login_subject_factory = new LoginSubjectFactory($DIC->database());
+
+        $user_adapter = new UserAdapter($DIC->database());
+
+        $this->record_failed_login_attempts = new RecordFailedLoginAttempts(
+            $security_adapter,  // LoginAttemptLimit
+            $user_adapter,      // LoginAttemptRepository
+            $user_adapter       // AccountDeactivation
+        );
+
+        $this->complete_successful_login = new CompleteSuccessfulLogin(
+            $user_adapter,      // LoginAttemptRepository
+            $user_adapter,      // LoginTimestampsRepository
+            $user_adapter,      // PasswordChangeTrackingRepository
+            $security_adapter   // PasswordChangeOnFirstLoginSettings
+        );
+
+        $this->failed_login_candidate_resolver = new FailedLoginCandidateResolver($DIC->database());
     }
 
     public function getAuthSession(): ilAuthSession
@@ -192,62 +226,29 @@ class ilAuthFrontend implements ilAuthFrontendInterface
 
     protected function handleAuthenticationSuccess(ilAuthProviderInterface $provider): bool
     {
-        $user = ilObjectFactory::getInstanceByObjId($this->getStatus()->getAuthenticatedUserId(), false);
-
-        $this->getStatus()->setReason('auth_err_invalid_user_account');
         // reset expired status
         $this->getAuthSession()->setExpired(false);
 
-        if (!$user instanceof ilObjUser) {
-            $this->logger->error('Cannot instantiate user account with id: ' . $this->getStatus()->getAuthenticatedUserId());
-            $this->getStatus()->setStatus(ilAuthStatus::STATUS_AUTHENTICATION_FAILED);
-            $this->getStatus()->setAuthenticatedUserId(ANONYMOUS_USER_ID);
-            return false;
-        }
+        $user_id = new UserId($this->getStatus()->getAuthenticatedUserId());
+        $subject = $this->login_subject_factory->forUserId($user_id);
 
-        if (!$this->checkExceededLoginAttempts($user)) {
-            $this->logger->info('Authentication failed for inactive user with id and too may login attempts: ' . $this->getStatus()->getAuthenticatedUserId());
-            $this->getStatus()->setStatus(ilAuthStatus::STATUS_AUTHENTICATION_FAILED);
-            $this->getStatus()->setAuthenticatedUserId(ANONYMOUS_USER_ID);
-            return false;
-        }
+        $policy_result = $this->post_login_policy_runner->evaluate($subject);
 
-        if (!$this->checkActivation($user)) {
-            $this->logger->info('Authentication failed for inactive user with id: ' . $this->getStatus()->getAuthenticatedUserId());
-            $this->getStatus()->setStatus(ilAuthStatus::STATUS_AUTHENTICATION_FAILED);
-            $this->getStatus()->setAuthenticatedUserId(ANONYMOUS_USER_ID);
-            return false;
-        }
-
-        // time limit
-        if (!$this->checkTimeLimit($user)) {
-            $this->logger->info('Authentication failed (time limit restriction) for user with id: ' . $this->getStatus()->getAuthenticatedUserId());
-
-            if ($this->settings->get('user_reactivate_code')) {
-                $this->logger->debug('Accout reactivation codes are active');
+        if ($policy_result->isError()) {
+            if ($policy_result->error() === 'STATUS_CODE_ACTIVATION_REQUIRED') {
+                $this->logger->debug('Account reactivation codes are active');
                 $this->getStatus()->setStatus(ilAuthStatus::STATUS_CODE_ACTIVATION_REQUIRED);
             } else {
-                $this->logger->debug('Accout reactivation codes are inactive');
+                $this->logger->debug('Account reactivation codes are inactive');
                 $this->getStatus()->setStatus(ilAuthStatus::STATUS_AUTHENTICATION_FAILED);
+                $this->getStatus()->setReason($policy_result->error());
                 $this->getStatus()->setAuthenticatedUserId(ANONYMOUS_USER_ID);
             }
             return false;
         }
 
-        // ip check
-        if (!$this->checkIp($user)) {
-            $this->logger->info('Authentication failed (wrong ip) for user with id: ' . $this->getStatus()->getAuthenticatedUserId());
-            $this->getStatus()->setStatus(ilAuthStatus::STATUS_AUTHENTICATION_FAILED);
-            $this->getStatus()->setAuthenticatedUserId(ANONYMOUS_USER_ID);
-            return false;
-        }
-
-        // check simultaneous logins
-        $this->logger->debug('Check simultaneous login');
-        if (!$this->checkSimultaneousLogins($user)) {
-            $this->logger->info('Authentication failed: simultaneous logins forbidden for user: ' . $this->getStatus()->getAuthenticatedUserId());
-            $this->getStatus()->setStatus(ilAuthStatus::STATUS_AUTHENTICATION_FAILED);
-            $this->getStatus()->setAuthenticatedUserId(ANONYMOUS_USER_ID);
+        $user = $this->instantiateUser($user_id->value());
+        if (!$user instanceof ilObjUser || $user->getId() === ANONYMOUS_USER_ID) {
             return false;
         }
 
@@ -262,27 +263,10 @@ class ilAuthFrontend implements ilAuthFrontendInterface
         // redirects in case of error (session pool limit reached)
         ilSessionControl::handleLoginEvent($user->getLogin(), $this->getAuthSession());
 
-
         // @todo move to event handling
         ilOnlineTracking::addUser($user->getId());
 
-        $security_settings = ilSecuritySettings::_getInstance();
-
-        // determine first login of user for setting an indicator
-        // which still is available in PersonalDesktop, Repository, ...
-        // (last login date is set to current date in next step)
-        if (
-            $security_settings->isPasswordChangeOnFirstLoginEnabled() &&
-            $user->getLastLogin() === ''
-        ) {
-            $user->resetLastPasswordChange();
-        }
-
-        if ($user->getLoginAttempts() > 0) {
-            $user->setLoginAttempts(0);
-        }
-        $user->refreshLogin();
-        $user->update();
+        $this->complete_successful_login->execute($subject);
 
         $this->logger->info('Successfully authenticated: ' . ilObjUser::_lookupLogin($this->getStatus()->getAuthenticatedUserId()));
         $this->getAuthSession()->setAuthenticated(true, $this->getStatus()->getAuthenticatedUserId());
@@ -291,13 +275,12 @@ class ilAuthFrontend implements ilAuthFrontendInterface
 
         ilSession::set('orig_request_target', '');
 
-
         // --- anonymous/registered user
         if (PHP_SAPI !== 'cli') {
             $this->logger->info(
                 'logged in as ' . $user->getLogin() .
-            ', remote:' . $_SERVER['REMOTE_ADDR'] . ':' . $_SERVER['REMOTE_PORT'] .
-            ', server:' . $_SERVER['SERVER_ADDR'] . ':' . $_SERVER['SERVER_PORT']
+                ', remote:' . $_SERVER['REMOTE_ADDR'] . ':' . $_SERVER['REMOTE_PORT'] .
+                ', server:' . $_SERVER['SERVER_ADDR'] . ':' . $_SERVER['SERVER_PORT']
             );
         } else {
             $this->logger->info(
@@ -319,62 +302,6 @@ class ilAuthFrontend implements ilAuthFrontendInterface
         return true;
     }
 
-    protected function checkActivation(ilObjUser $user): bool
-    {
-        return $user->getActive();
-    }
-
-    protected function checkExceededLoginAttempts(ilObjUser $user): bool
-    {
-        if ($user->getId() === ANONYMOUS_USER_ID) {
-            return true;
-        }
-
-        $isInactive = !$user->getActive();
-        if (!$isInactive) {
-            return true;
-        }
-
-        $security = ilSecuritySettings::_getInstance();
-        $maxLoginAttempts = $security->getLoginMaxAttempts();
-
-        if (!$maxLoginAttempts) {
-            return true;
-        }
-
-        $numLoginAttempts = \ilObjUser::_getLoginAttempts($user->getId());
-
-        return $numLoginAttempts < $maxLoginAttempts;
-    }
-
-    protected function checkTimeLimit(ilObjUser $user): bool
-    {
-        return $user->checkTimeLimit();
-    }
-
-    protected function checkIp(ilObjUser $user): bool
-    {
-        $clientip = $user->getClientIP();
-        if (trim($clientip) !== '') {
-            $clientip = preg_replace('/[^0-9.?*,:]+/', '', $clientip);
-            $clientip = str_replace(['.', '?', '*', ','], ["\\.", '[0-9]', '[0-9]*', '|'], $clientip);
-
-            ilLoggerFactory::getLogger('auth')->debug('Check ip ' . $clientip . ' against ' . $_SERVER['REMOTE_ADDR']);
-
-            if (!preg_match('/^' . $clientip . '$/', $_SERVER['REMOTE_ADDR'])) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    protected function checkSimultaneousLogins(ilObjUser $user): bool
-    {
-        $this->logger->debug('Setting prevent simultaneous session is: ' . $this->settings->get('ps_prevent_simultaneous_logins'));
-        return !($this->settings->get('ps_prevent_simultaneous_logins') &&
-            ilObjUser::hasActiveSession($user->getId(), $this->getAuthSession()->getId()));
-    }
-
     protected function handleAuthenticationFail(): bool
     {
         $this->logger->debug('Authentication failed for all authentication methods.');
@@ -386,76 +313,25 @@ class ilAuthFrontend implements ilAuthFrontendInterface
 
     protected function handleLoginAttempts(): void
     {
-        $security = ilSecuritySettings::_getInstance();
-        $max_attempts = $security->getLoginMaxAttempts();
-        if ($max_attempts < 1) {
-            return;
-        }
+        $candidate_usr_ids = $this->failed_login_candidate_resolver->resolve($this->getCredentials());
 
-        $auth_determination = ilAuthModeDetermination::_getInstance();
-        if ($this->getCredentials()->getAuthMode() !== '') {
-            $auth_modes = [
-                $this->getCredentials()->getAuthMode()
-            ];
-        } else {
-            $auth_modes = $auth_determination->getAuthModeSequence($this->getCredentials()->getUsername());
-        }
-
-        $usr_id_candidates = [];
-        foreach (array_filter($auth_modes) as $auth_mode) {
-            if ((int) $auth_mode === ilAuthUtils::AUTH_LOCAL) {
-                $usr_id_candidates[] = ilObjUser::_lookupId($this->getCredentials()->getUsername());
-                continue;
-            }
-
-            $login = ilObjUser::_checkExternalAuthAccount(
-                ilAuthUtils::_getAuthModeName($auth_mode),
-                $this->getCredentials()->getUsername(),
-                false
-            );
-            if (!is_string($login) || $login === '') {
-                continue;
-            }
-
-            $usr_id_candidates[] = ilObjUser::_lookupId($login);
-        }
-
-        $usr_id_candidates = array_values(array_unique(array_filter($usr_id_candidates, intval(...))));
-        $num_deacticated_accounts = 0;
-        foreach ($usr_id_candidates as $usr_id) {
-            if ($usr_id === ANONYMOUS_USER_ID) {
-                continue;
-            }
-
-            $num_login_attempts = ilObjUser::_getLoginAttempts($usr_id);
-
-            if ($num_login_attempts <= $max_attempts) {
-                ilObjUser::_incrementLoginAttempts($usr_id);
-                $this->logger->notice(
-                    sprintf(
-                        'Incremented login attempts for user %s with id %s.',
-                        $this->getCredentials()->getUsername(),
-                        $usr_id
-                    )
-                );
-            }
-
-            if ($num_login_attempts >= $max_attempts) {
-                ilObjUser::_setUserInactive($usr_id);
-
-                ++$num_deacticated_accounts;
-                $this->logger->warning(
-                    sprintf(
-                        'User account %s with id %s set to inactive due to exceeded login attempts.',
-                        $this->getCredentials()->getUsername(),
-                        $usr_id
-                    )
-                );
-            }
-        }
-
-        if ($num_deacticated_accounts > 0) {
+        $result = $this->record_failed_login_attempts->execute($candidate_usr_ids);
+        if ($result->value() > 0) {
             $this->getStatus()->setReason('auth_err_invalid_user_account');
         }
+    }
+
+    private function instantiateUser(int $user_id): ?ilObjUser
+    {
+        $user = ilObjectFactory::getInstanceByObjId($user_id, false);
+
+        if (!$user instanceof ilObjUser) {
+            $this->logger->error('Cannot instantiate user account with id: ' . $user_id);
+            $this->getStatus()->setStatus(ilAuthStatus::STATUS_AUTHENTICATION_FAILED);
+            $this->getStatus()->setAuthenticatedUserId(ANONYMOUS_USER_ID);
+            return null;
+        }
+
+        return $user;
     }
 }

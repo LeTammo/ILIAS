@@ -18,6 +18,9 @@
 
 declare(strict_types=1);
 
-class ilAuthFrontendCLI extends ilAuthFrontend implements ilAuthFrontendInterface
+namespace ILIAS\Authentication\Login\Port\Request;
+
+interface RequestClientIp
 {
+    public function value(): string;
 }

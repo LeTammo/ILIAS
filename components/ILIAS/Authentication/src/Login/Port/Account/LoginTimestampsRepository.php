@@ -18,6 +18,11 @@
 
 declare(strict_types=1);
 
-class ilAuthFrontendCLI extends ilAuthFrontend implements ilAuthFrontendInterface
+namespace ILIAS\Authentication\Login\Port\Account;
+
+use ILIAS\Authentication\Login\UserId;
+
+interface LoginTimestampsRepository
 {
+    public function refreshLogin(UserId $user_id): void;
 }

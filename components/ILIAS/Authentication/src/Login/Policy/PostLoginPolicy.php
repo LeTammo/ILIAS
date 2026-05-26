@@ -18,6 +18,13 @@
 
 declare(strict_types=1);
 
-class ilAuthFrontendCLI extends ilAuthFrontend implements ilAuthFrontendInterface
+namespace ILIAS\Authentication\Login\Policy;
+
+use ILIAS\Authentication\Login\LoginSubject;
+use ILIAS\Data\Result;
+
+interface PostLoginPolicy
 {
+    /** @return Result<null> Ok = erlaubt, Error = Sprachschlüssel (z. B. auth_err_…) */
+    public function evaluate(LoginSubject $subject): Result;
 }

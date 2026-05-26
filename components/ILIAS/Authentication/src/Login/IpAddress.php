@@ -18,6 +18,16 @@
 
 declare(strict_types=1);
 
-class ilAuthFrontendCLI extends ilAuthFrontend implements ilAuthFrontendInterface
+namespace ILIAS\Authentication\Login;
+
+final readonly class IpAddress
 {
+    public function __construct(private string $value)
+    {
+    }
+
+    public function value(): string
+    {
+        return $this->value;
+    }
 }

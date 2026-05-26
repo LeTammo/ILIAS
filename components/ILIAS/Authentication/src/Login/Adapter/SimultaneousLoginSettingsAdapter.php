@@ -18,6 +18,18 @@
 
 declare(strict_types=1);
 
-class ilAuthFrontendCLI extends ilAuthFrontend implements ilAuthFrontendInterface
+namespace ILIAS\Authentication\Login\Adapter;
+
+use ILIAS\Authentication\Login\Port\Session\SimultaneousLoginSettings;
+
+final readonly class SimultaneousLoginSettingsAdapter implements SimultaneousLoginSettings
 {
+    public function __construct(private \ilSetting $settings)
+    {
+    }
+
+    public function preventSimultaneousLogins(): bool
+    {
+        return (bool) $this->settings->get('ps_prevent_simultaneous_logins');
+    }
 }

@@ -18,6 +18,19 @@
 
 declare(strict_types=1);
 
-class ilAuthFrontendCLI extends ilAuthFrontend implements ilAuthFrontendInterface
+namespace ILIAS\Authentication\Login\Policy;
+
+use ILIAS\Authentication\Login\LoginSubject;
+use ILIAS\Data\Result;
+
+final readonly class ActiveAccountPolicy implements PostLoginPolicy
 {
+    public function evaluate(LoginSubject $subject): Result
+    {
+        if ($subject->isActive()) {
+            return new Result\Ok(null);
+        }
+
+        return new Result\Error('auth_err_invalid_user_account');
+    }
 }

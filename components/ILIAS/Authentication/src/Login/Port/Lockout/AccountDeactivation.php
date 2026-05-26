@@ -18,6 +18,11 @@
 
 declare(strict_types=1);
 
-class ilAuthFrontendCLI extends ilAuthFrontend implements ilAuthFrontendInterface
+namespace ILIAS\Authentication\Login\Port\Lockout;
+
+use ILIAS\Authentication\Login\UserId;
+
+interface AccountDeactivation
 {
+    public function deactivate(UserId $user_id): void;
 }

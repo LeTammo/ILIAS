@@ -18,6 +18,14 @@
 
 declare(strict_types=1);
 
-class ilAuthFrontendCLI extends ilAuthFrontend implements ilAuthFrontendInterface
+namespace ILIAS\Authentication\Login\Adapter;
+
+use ILIAS\Authentication\Login\Port\Request\RequestClientIp;
+
+final readonly class RequestClientIpAdapter implements RequestClientIp
 {
+    public function value(): string
+    {
+        return ($_SERVER['REMOTE_ADDR'] ?? '');
+    }
 }

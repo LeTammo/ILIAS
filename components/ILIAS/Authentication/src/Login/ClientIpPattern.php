@@ -18,6 +18,21 @@
 
 declare(strict_types=1);
 
-class ilAuthFrontendCLI extends ilAuthFrontend implements ilAuthFrontendInterface
+namespace ILIAS\Authentication\Login;
+
+final readonly class ClientIpPattern
 {
+    public function __construct(private string $pattern)
+    {
+    }
+
+    public function isEmpty(): bool
+    {
+        return trim($this->pattern) === '';
+    }
+
+    public function pattern(): string
+    {
+        return $this->pattern;
+    }
 }

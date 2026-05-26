@@ -18,6 +18,24 @@
 
 declare(strict_types=1);
 
-class ilAuthFrontendCLI extends ilAuthFrontend implements ilAuthFrontendInterface
+namespace ILIAS\Authentication\Login;
+
+final readonly class UserId
 {
+    public function __construct(private int $value)
+    {
+        if ($value <= 0 && $value !== ANONYMOUS_USER_ID) {
+            throw new \InvalidArgumentException("Invalid user id: {$value}");
+        }
+    }
+
+    public function isAnonymous(): bool
+    {
+        return $this->value === ANONYMOUS_USER_ID;
+    }
+
+    public function value(): int
+    {
+        return $this->value;
+    }
 }

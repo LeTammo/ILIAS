@@ -18,6 +18,11 @@
 
 declare(strict_types=1);
 
-class ilAuthFrontendCLI extends ilAuthFrontend implements ilAuthFrontendInterface
+namespace ILIAS\Authentication\Login\Port\Password;
+
+use ILIAS\Authentication\Login\UserId;
+
+interface PasswordChangeTrackingRepository
 {
+    public function resetLastChange(UserId $user_id): void;
 }

@@ -18,6 +18,15 @@
 
 declare(strict_types=1);
 
-class ilAuthFrontendCLI extends ilAuthFrontend implements ilAuthFrontendInterface
+namespace ILIAS\Authentication\Login\Adapter;
+
+use ILIAS\Authentication\Login\Port\Session\ActiveSessionProbe;
+use ILIAS\Authentication\Login\UserId;
+
+final readonly class ActiveSessionProbeAdapter implements ActiveSessionProbe
 {
+    public function hasOtherActiveSession(UserId $user_id, string $current_session_id): bool
+    {
+        return \ilObjUser::hasActiveSession($user_id->value(), $current_session_id);
+    }
 }

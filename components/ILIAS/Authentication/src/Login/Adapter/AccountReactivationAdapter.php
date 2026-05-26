@@ -18,6 +18,18 @@
 
 declare(strict_types=1);
 
-class ilAuthFrontendCLI extends ilAuthFrontend implements ilAuthFrontendInterface
+namespace ILIAS\Authentication\Login\Adapter;
+
+use ILIAS\Authentication\Login\Port\Account\AccountReactivationSettings;
+
+final readonly class AccountReactivationAdapter implements AccountReactivationSettings
 {
+    public function __construct(private \ilSetting $settings)
+    {
+    }
+
+    public function isReactivationCodeEnabled(): bool
+    {
+        return (bool) $this->settings->get('user_reactivate_code');
+    }
 }

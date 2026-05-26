@@ -18,6 +18,15 @@
 
 declare(strict_types=1);
 
-class ilAuthFrontendCLI extends ilAuthFrontend implements ilAuthFrontendInterface
+namespace ILIAS\Authentication\Login\Port\Lockout;
+
+use ILIAS\Authentication\Login\UserId;
+
+interface LoginAttemptRepository
 {
+    public function getCount(UserId $user_id): int;
+
+    public function increment(UserId $user_id): void;
+
+    public function reset(UserId $user_id): void;
 }
